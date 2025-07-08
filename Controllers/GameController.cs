@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Senso.Models;
+using Senso.Repositories;
 
 namespace Senso.Controllers
 {
@@ -7,53 +8,118 @@ namespace Senso.Controllers
     [Route("api/[controller]")]
     public class GameController : ControllerBase
     {
-        private static readonly List<GameSession> Sessions = new List<GameSession>();
-        private static readonly Random Random = new Random();
-        private static int NextId = 1;
+        private readonly IGameRepository _repo;
+        private readonly Random _random = new();
 
-        private static readonly List<int> ColorIds = new List<int> { 1, 2, 3, 4 };
+        public GameController(IGameRepository repo)
+        {
+            _repo = repo;
+        }
 
+        /// <summary>
+        /// Starts a new game session.
+        /// </summary>
         [HttpPost("start")]
         public ActionResult<GameSession> StartGame(int playerId)
         {
             var session = new GameSession
             {
-                Id = NextId++,
+                Id = _repo.GetSessions().Count + 1,
                 PlayerId = playerId,
-                Sequence = new List<int> { Random.Next(1, 5) },
-                IsActive = true
+                Sequence = new List<int>(),
+                IsActive = true,
+                CurrentStep = 0,
+                IsGameOver = false
             };
-            Sessions.Add(session);
+
+            GenerateNextStep(session);
+            _repo.GetSessions().Add(session);
             return session;
         }
 
-        [HttpGet("{sessionId}")]
-        public ActionResult<GameSession> GetSession(int sessionId)
+        /// <summary>
+        /// Generates the next color in the sequence.
+        /// </summary>
+        private void GenerateNextStep(GameSession session)
         {
-            var session = Sessions.FirstOrDefault(s => s.Id == sessionId);
-            if (session == null) return NotFound();
-            return session;
+            var nextColorId = _random.Next(1, 5);
+            session.Sequence.Add(nextColorId);
         }
 
-        [HttpPost("{sessionId}/submit")]
-        public ActionResult SubmitSequence(int sessionId, [FromBody] List<int> playerSequence)
+        /// <summary>
+        /// Returns the current sequence to play back to the player.
+        /// </summary>
+        [HttpGet("{sessionId}/play-sequence")]
+        public ActionResult<List<int>> PlaySequence(int sessionId)
         {
-            var session = Sessions.FirstOrDefault(s => s.Id == sessionId);
-            if (session == null || !session.IsActive) return BadRequest("Invalid session");
+            var session = _repo.GetSession(sessionId);
+            if (session == null || session.IsGameOver)
+                return BadRequest("Invalid or finished game.");
 
-            // Validate input
-            for (int i = 0; i < session.Sequence.Count; i++)
+            return session.Sequence;
+        }
+
+        /// <summary>
+        /// Checks the next input from the player.
+        /// </summary>
+        [HttpPost("{sessionId}/input")]
+        public ActionResult CheckInput(int sessionId, int inputColorId)
+        {
+            var session = _repo.GetSession(sessionId);
+            if (session == null || session.IsGameOver)
+                return BadRequest("Invalid or finished game.");
+
+            // Check the current step
+            if (session.Sequence[session.CurrentStep] == inputColorId)
             {
-                if (i >= playerSequence.Count || session.Sequence[i] != playerSequence[i])
+                session.CurrentStep++;
+
+                // Check if sequence completed
+                if (session.CurrentStep >= session.Sequence.Count)
                 {
-                    session.IsActive = false;
-                    return Ok(new { Result = "Incorrect", Sequence = session.Sequence });
+                    // Add next step
+                    GenerateNextStep(session);
+                    session.CurrentStep = 0;
+                    return Ok(new { Result = "Correct", NextSequenceLength = session.Sequence.Count });
+                }
+                else
+                {
+                    return Ok(new { Result = "Correct", Step = session.CurrentStep });
                 }
             }
+            else
+            {
+                EndGame(session);
+                return Ok(new { Result = "Incorrect", Score = GetScore(session) });
+            }
+        }
 
-            // Add new color
-            session.Sequence.Add(Random.Next(1, 5));
-            return Ok(new { Result = "Correct", NewSequence = session.Sequence });
+        /// <summary>
+        /// Ends the game.
+        /// </summary>
+        private void EndGame(GameSession session)
+        {
+            session.IsGameOver = true;
+            session.IsActive = false;
+        }
+
+        /// <summary>
+        /// Returns the player's score (sequence length - 1).
+        /// </summary>
+        [HttpGet("{sessionId}/score")]
+        public ActionResult<int> GetScore(int sessionId)
+        {
+            var session = _repo.GetSession(sessionId);
+            if (session == null)
+                return NotFound();
+
+            return GetScore(session);
+        }
+
+        private int GetScore(GameSession session)
+        {
+            // Score = number of successfully completed rounds
+            return session.Sequence.Count - 1;
         }
     }
 }

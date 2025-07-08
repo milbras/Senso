@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Senso.Models;
-using System.Numerics;
+using Senso.Repositories;
 
 namespace Senso.Controllers
 {
@@ -8,21 +8,24 @@ namespace Senso.Controllers
     [Route("api/[controller]")]
     public class UserController : ControllerBase
     {
-        private static readonly List<Player> Players = new List<Player>();
-        private static int NextId = 1;
+        private readonly IGameRepository _repo;
+
+        public UserController(IGameRepository repo)
+        {
+            _repo = repo;
+        }
 
         [HttpPost("register")]
         public ActionResult<Player> Register(string userName)
         {
-            var player = new Player { Id = NextId++, UserName = userName };
-            Players.Add(player);
+            var player = _repo.AddPlayer(userName);
             return player;
         }
 
         [HttpGet]
         public ActionResult<List<Player>> GetPlayers()
         {
-            return Players;
+            return _repo.GetPlayers();
         }
     }
 }
