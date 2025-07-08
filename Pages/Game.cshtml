@@ -72,14 +72,15 @@
     }
 
     async function submitInput(colorId) {
-        highlightQuadrant(colorId);
         const response = await fetch(`/api/game/${sessionId}/input?inputColorId=${colorId}`, { method: 'POST' });
         const data = await response.json();
+
+        console.log("Response:", data); // Debug to see the server response
 
         if (data.result === "Correct") {
             if (data.nextSequence) {
                 document.getElementById('status').innerText = 'Correct! New sequence...';
-                // WAIT a moment before playback
+                // WAIT briefly before showing next sequence
                 await delay(500);
                 await loadSequence();
             } else {
@@ -94,4 +95,7 @@
         document.getElementById('score').innerText = score;
     }
 
+    function delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
 </script>
