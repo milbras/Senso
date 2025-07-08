@@ -114,9 +114,24 @@
     }
 
     async function loadSequence() {
+        document.getElementById('status').innerText = "Watch carefully!";
+
         const response = await fetch(`/api/game/${sessionId}/play-sequence`);
-        const data = await response.json();
-        document.getElementById('sequence').innerText = data.map(c => colorName(c)).join(' - ');
+        const sequence = await response.json();
+
+        document.getElementById('sequence').innerText = ""; // Clear text while animating
+
+        // Animate each step
+        for (let i = 0; i < sequence.length; i++) {
+            const colorId = sequence[i];
+            await highlightQuadrantAnimated(colorId);
+            await delay(500); // pause between highlights
+        }
+
+        // Show the text sequence after animation
+        document.getElementById('sequence').innerText = sequence.map(c => colorName(c)).join(' - ');
+
+        document.getElementById('status').innerText = "Your turn!";
     }
 
     function colorName(id) {
@@ -155,6 +170,29 @@
         setTimeout(() => {
             quadrant.classList.remove('active');
         }, 300);
+    }
+
+    function delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function colorName(id) {
+        switch (id) {
+            case 1: return 'Red';
+            case 2: return 'Green';
+            case 3: return 'Blue';
+            case 4: return 'Yellow';
+            default: return '?';
+        }
+    }
+
+    async function highlightQuadrantAnimated(colorId) {
+        const colors = ['red', 'green', 'blue', 'yellow'];
+        const quadrant = document.querySelector('.' + colors[colorId - 1]);
+
+        quadrant.classList.add('active');
+        await delay(500); // how long the highlight stays on
+        quadrant.classList.remove('active');
     }
 
 </script>
