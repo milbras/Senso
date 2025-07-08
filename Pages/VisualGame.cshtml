@@ -1,0 +1,160 @@
+﻿@page
+@model dynamic
+@{
+    ViewData["Title"] = "Senso Game";
+}
+<h1>Senso Game</h1>
+
+<div>
+    <label>Player Name:</label>
+    <input type="text" id="playerName" />
+    <button onclick="registerPlayer()">Register Player</button>
+</div>
+
+<div id="gameArea" style="display:none; margin-top:20px;">
+    <button onclick="startGame()">Start Game</button>
+
+    <h3>Sequence:</h3>
+    <div id="sequence"></div>
+
+    <h3>Score:</h3>
+    <div id="score"></div>
+
+    <h3>Status:</h3>
+    <div id="status"></div>
+
+    <div class="game-board">
+        <div class="quadrant red" onclick="submitInput(1)"></div>
+        <div class="quadrant green" onclick="submitInput(2)"></div>
+        <div class="quadrant blue" onclick="submitInput(3)"></div>
+        <div class="quadrant yellow" onclick="submitInput(4)"></div>
+    </div>
+</div>
+
+<style>
+    .game-board {
+        position: relative;
+        width: 300px;
+        height: 300px;
+        border-radius: 50%;
+        margin: 30px auto;
+        overflow: hidden;
+        box-shadow: 0 0 20px rgba(0,0,0,0.3);
+    }
+
+    .quadrant {
+        position: absolute;
+        width: 50%;
+        height: 50%;
+        cursor: pointer;
+        transition: opacity 0.2s;
+    }
+
+        .quadrant:hover {
+            opacity: 0.8;
+        }
+
+        .quadrant.active {
+            opacity: 0.4;
+        }
+
+    .red {
+        background: red;
+        top: 0;
+        left: 0;
+        border-top-left-radius: 100% 100%;
+    }
+
+    .green {
+        background: green;
+        top: 0;
+        right: 0;
+        border-top-right-radius: 100% 100%;
+    }
+
+    .blue {
+        background: blue;
+        bottom: 0;
+        left: 0;
+        border-bottom-left-radius: 100% 100%;
+    }
+
+    .yellow {
+        background: yellow;
+        bottom: 0;
+        right: 0;
+        border-bottom-right-radius: 100% 100%;
+    }
+</style>
+
+<script>
+    let playerId = null;
+    let sessionId = null;
+
+    async function registerPlayer() {
+        const name = document.getElementById('playerName').value;
+        if (!name) {
+            alert("Enter a player name.");
+            return;
+        }
+        const response = await fetch(`/api/user/register?userName=${encodeURIComponent(name)}`, { method: 'POST' });
+        const data = await response.json();
+        playerId = data.id;
+        document.getElementById('gameArea').style.display = 'block';
+        alert(`Player registered: ${data.userName} (ID: ${playerId})`);
+    }
+
+    async function startGame() {
+        const response = await fetch(`/api/game/start?playerId=${playerId}`, { method: 'POST' });
+        const data = await response.json();
+        sessionId = data.id;
+        document.getElementById('status').innerText = 'Game started!';
+        document.getElementById('score').innerText = '0';
+        await loadSequence();
+    }
+
+    async function loadSequence() {
+        const response = await fetch(`/api/game/${sessionId}/play-sequence`);
+        const data = await response.json();
+        document.getElementById('sequence').innerText = data.map(c => colorName(c)).join(' - ');
+    }
+
+    function colorName(id) {
+        switch (id) {
+            case 1: return 'Red';
+            case 2: return 'Green';
+            case 3: return 'Blue';
+            case 4: return 'Yellow';
+            default: return '?';
+        }
+    }
+
+    async function submitInput(colorId) {
+        highlightQuadrant(colorId);
+
+        const response = await fetch(`/api/game/${sessionId}/input?inputColorId=${colorId}`, { method: 'POST' });
+        const data = await response.json();
+
+        if (data.result === "Correct") {
+            document.getElementById('status').innerText = 'Correct!';
+            if (data.nextSequenceLength) {
+                await loadSequence();
+            }
+        } else {
+            document.getElementById('status').innerText = 'Incorrect! Game Over.';
+        }
+        const scoreResponse = await fetch(`/api/game/${sessionId}/score`);
+        const score = await scoreResponse.json();
+        document.getElementById('score').innerText = score;
+    }
+
+    function highlightQuadrant(colorId) {
+        const colors = ['red', 'green', 'blue', 'yellow'];
+        const quadrant = document.querySelector('.' + colors[colorId - 1]);
+        quadrant.classList.add('active');
+        setTimeout(() => {
+            quadrant.classList.remove('active');
+        }, 300);
+    }
+
+</script>
