@@ -1,6 +1,4 @@
 using Microsoft.AspNetCore.Mvc;
-using System.Drawing;
-using Senso.Models;
 
 namespace Senso.Controllers
 {

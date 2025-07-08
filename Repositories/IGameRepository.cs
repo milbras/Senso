@@ -7,8 +7,7 @@ namespace Senso.Repositories
         List<Player> GetPlayers();
         Player AddPlayer(string userName);
         List<GameSession> GetSessions();
-        GameSession StartSession(int playerId);
         GameSession? GetSession(int sessionId);
-        void UpdateSession(GameSession session);
+        void AddSession(GameSession session);
     }
 }

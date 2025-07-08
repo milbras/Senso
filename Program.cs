@@ -6,6 +6,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddSingleton<Senso.Repositories.IGameRepository, Senso.Repositories.InMemoryGameRepository>();
+builder.Services.AddSingleton<Senso.Services.IGameService, Senso.Services.GameService>();
 
 var app = builder.Build();
 

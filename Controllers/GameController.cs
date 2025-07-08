@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Senso.Models;
-using Senso.Repositories;
+using Senso.Services;
 
 namespace Senso.Controllers
 {
@@ -8,118 +7,50 @@ namespace Senso.Controllers
     [Route("api/[controller]")]
     public class GameController : ControllerBase
     {
-        private readonly IGameRepository _repo;
-        private readonly Random _random = new();
+        private readonly IGameService _gameService;
 
-        public GameController(IGameRepository repo)
+        public GameController(IGameService gameService)
         {
-            _repo = repo;
+            _gameService = gameService;
         }
 
-        /// <summary>
-        /// Starts a new game session.
-        /// </summary>
         [HttpPost("start")]
-        public ActionResult<GameSession> StartGame(int playerId)
+        public IActionResult StartGame(int playerId)
         {
-            var session = new GameSession
-            {
-                Id = _repo.GetSessions().Count + 1,
-                PlayerId = playerId,
-                Sequence = new List<int>(),
-                IsActive = true,
-                CurrentStep = 0,
-                IsGameOver = false
-            };
-
-            GenerateNextStep(session);
-            _repo.GetSessions().Add(session);
-            return session;
+            var session = _gameService.StartGame(playerId);
+            return Ok(session);
         }
 
-        /// <summary>
-        /// Generates the next color in the sequence.
-        /// </summary>
-        private void GenerateNextStep(GameSession session)
-        {
-            var nextColorId = _random.Next(1, 5);
-            session.Sequence.Add(nextColorId);
-        }
-
-        /// <summary>
-        /// Returns the current sequence to play back to the player.
-        /// </summary>
         [HttpGet("{sessionId}/play-sequence")]
-        public ActionResult<List<int>> PlaySequence(int sessionId)
+        public IActionResult GetSequence(int sessionId)
         {
-            var session = _repo.GetSession(sessionId);
-            if (session == null || session.IsGameOver)
-                return BadRequest("Invalid or finished game.");
-
-            return session.Sequence;
+            var sequence = _gameService.GetSequence(sessionId);
+            return Ok(sequence);
         }
 
-        /// <summary>
-        /// Checks the next input from the player.
-        /// </summary>
         [HttpPost("{sessionId}/input")]
-        public ActionResult CheckInput(int sessionId, int inputColorId)
+        public IActionResult SubmitInput(int sessionId, int inputColorId)
         {
-            var session = _repo.GetSession(sessionId);
-            if (session == null || session.IsGameOver)
-                return BadRequest("Invalid or finished game.");
+            var (isCorrect, isCompleted) = _gameService.CheckInput(sessionId, inputColorId);
 
-            // Check the current step
-            if (session.Sequence[session.CurrentStep] == inputColorId)
+            if (isCorrect)
             {
-                session.CurrentStep++;
-
-                // Check if sequence completed
-                if (session.CurrentStep >= session.Sequence.Count)
-                {
-                    // Add next step
-                    GenerateNextStep(session);
-                    session.CurrentStep = 0;
-                    return Ok(new { Result = "Correct", NextSequenceLength = session.Sequence.Count });
-                }
+                if (isCompleted)
+                    return Ok(new { Result = "Correct", NextSequence = true });
                 else
-                {
-                    return Ok(new { Result = "Correct", Step = session.CurrentStep });
-                }
+                    return Ok(new { Result = "Correct" });
             }
             else
             {
-                EndGame(session);
-                return Ok(new { Result = "Incorrect", Score = GetScore(session) });
+                return Ok(new { Result = "Incorrect" });
             }
         }
 
-        /// <summary>
-        /// Ends the game.
-        /// </summary>
-        private void EndGame(GameSession session)
-        {
-            session.IsGameOver = true;
-            session.IsActive = false;
-        }
-
-        /// <summary>
-        /// Returns the player's score (sequence length - 1).
-        /// </summary>
         [HttpGet("{sessionId}/score")]
-        public ActionResult<int> GetScore(int sessionId)
+        public IActionResult GetScore(int sessionId)
         {
-            var session = _repo.GetSession(sessionId);
-            if (session == null)
-                return NotFound();
-
-            return GetScore(session);
-        }
-
-        private int GetScore(GameSession session)
-        {
-            // Score = number of successfully completed rounds
-            return session.Sequence.Count - 1;
+            var score = _gameService.GetScore(sessionId);
+            return Ok(score);
         }
     }
 }

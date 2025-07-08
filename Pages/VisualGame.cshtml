@@ -146,22 +146,27 @@
 
     async function submitInput(colorId) {
         highlightQuadrant(colorId);
-
         const response = await fetch(`/api/game/${sessionId}/input?inputColorId=${colorId}`, { method: 'POST' });
         const data = await response.json();
 
         if (data.result === "Correct") {
-            document.getElementById('status').innerText = 'Correct!';
-            if (data.nextSequenceLength) {
-                await loadSequence();
+            if (data.nextSequence) {
+                document.getElementById('status').innerText = 'Correct! New sequence...';
+                // WAIT a moment before playback
+                await delay(500);
+                await loadSequence(); 
+            } else {
+                document.getElementById('status').innerText = 'Correct!';
             }
         } else {
             document.getElementById('status').innerText = 'Incorrect! Game Over.';
         }
+
         const scoreResponse = await fetch(`/api/game/${sessionId}/score`);
         const score = await scoreResponse.json();
         document.getElementById('score').innerText = score;
     }
+
 
     function highlightQuadrant(colorId) {
         const colors = ['red', 'green', 'blue', 'yellow'];
